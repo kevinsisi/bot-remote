@@ -21,6 +21,8 @@ test('parseCommand: 各指令', () => {
   assert.deepEqual(parseCommand('!cwd'), { type: 'cwd', path: '' });
   assert.deepEqual(parseCommand('  !STATUS  '), { type: 'status' });
   assert.deepEqual(parseCommand('!xyz'), { type: 'unknown', name: '!xyz' });
+  assert.deepEqual(parseCommand('!model sonnet'), { type: 'model', model: 'sonnet' });
+  assert.deepEqual(parseCommand('!model'), { type: 'model', model: '' });
 });
 
 test('chunkText: 短文字單塊', () => {

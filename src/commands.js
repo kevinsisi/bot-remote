@@ -18,6 +18,8 @@ export function parseCommand(text) {
       return { type: 'status' };
     case '!stop':
       return { type: 'stop' };
+    case '!model':
+      return { type: 'model', model: arg };
     default:
       return { type: 'unknown', name };
   }
@@ -27,6 +29,7 @@ export const HELP_TEXT = [
   '*bot-remote 指令*',
   '`!cwd <path>` — 切換工作目錄(專案)',
   '`!new` — 重開一個全新 Claude session',
+  '`!model <名稱>` — 切換模型(如 `sonnet`、`opus`、`haiku`;不帶參數顯示目前模型,`default` 還原預設)',
   '`!status` — 目前目錄 / session / 佇列狀態',
   '`!stop` — 中斷目前執行中的任務',
   '`!help` — 顯示這份說明',

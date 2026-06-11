@@ -53,6 +53,7 @@ export class ClaudeRunner {
         '--dangerously-skip-permissions',
       ];
       if (task.sessionId) args.push('--resume', task.sessionId);
+      if (task.model) args.push('--model', task.model);
 
       const child = spawn(this.claudeCmd, args, {
         cwd: task.cwd,
@@ -96,8 +97,8 @@ export class ClaudeRunner {
           }
           if (event.session_id) sessionId = event.session_id;
           if (event.type === 'assistant') {
-            const text = extractAssistantText(event);
-            if (text) task.onProgress?.(text);
+            const { text, thinking } = extractAssistantContent(event);
+            if (text || thinking) task.onProgress?.({ text, thinking });
           } else if (event.type === 'result') {
             resultText = event.result ?? '';
             isError = Boolean(event.is_error);
@@ -135,13 +136,16 @@ export class ClaudeRunner {
   }
 }
 
-function extractAssistantText(event) {
+function extractAssistantContent(event) {
   const content = event.message?.content;
-  if (!Array.isArray(content)) return '';
-  return content
-    .filter((block) => block.type === 'text')
-    .map((block) => block.text)
-    .join('');
+  if (!Array.isArray(content)) return { text: '', thinking: '' };
+  const pick = (type, field) =>
+    content
+      .filter((block) => block.type === type)
+      .map((block) => block[field])
+      .filter(Boolean)
+      .join('');
+  return { text: pick('text', 'text'), thinking: pick('thinking', 'thinking') };
 }
 
 function killTree(child) {

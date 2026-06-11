@@ -2,6 +2,6 @@
 $root = $PSScriptRoot
 & "$root\stop.ps1"
 Start-Process -WindowStyle Hidden -WorkingDirectory $root `
-    -FilePath "node" -ArgumentList "src/index.js" `
+    -FilePath "node" -ArgumentList "`"$root\src\index.js`"" `
     -RedirectStandardOutput "$root\bot.log" -RedirectStandardError "$root\bot.err.log"
 Write-Host "bot-remote 已在背景啟動,log: $root\bot.log"
