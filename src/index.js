@@ -2,7 +2,12 @@ import pkg from '@slack/bolt';
 import { existsSync, statSync } from 'node:fs';
 import { config } from './config.js';
 import { loadState, saveState } from './state.js';
-import { parseCommand, HELP_TEXT } from './commands.js';
+import {
+  parseCommand,
+  HELP_TEXT,
+  MODEL_LIST_TEXT,
+  isValidModel,
+} from './commands.js';
 import {
   toMrkdwn,
   chunkText,
@@ -162,10 +167,14 @@ async function handleCommand(command, channel, client) {
       break;
     case 'model': {
       if (!command.model) {
-        await say(`🤖 目前模型:\`${state.model || '(預設)'}\``);
+        await say(`🤖 目前模型:\`${state.model || '(預設)'}\`\n${MODEL_LIST_TEXT}`);
         break;
       }
-      state.model = command.model.toLowerCase() === 'default' ? null : command.model;
+      if (!isValidModel(command.model)) {
+        await say(`❌ 不認識的模型 \`${command.model}\`\n${MODEL_LIST_TEXT}`);
+        break;
+      }
+      state.model = command.model.toLowerCase() === 'default' ? null : command.model.toLowerCase();
       saveState(state);
       await say(`🤖 已切換模型:\`${state.model || '(預設)'}\`(下一則訊息生效)`);
       break;

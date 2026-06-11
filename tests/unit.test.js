@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseCommand } from '../src/commands.js';
+import { parseCommand, isValidModel } from '../src/commands.js';
 import { chunkText, toMrkdwn } from '../src/slack-format.js';
 
 test('parseCommand: 一般訊息回傳 null', () => {
@@ -23,6 +23,16 @@ test('parseCommand: 各指令', () => {
   assert.deepEqual(parseCommand('!xyz'), { type: 'unknown', name: '!xyz' });
   assert.deepEqual(parseCommand('!model sonnet'), { type: 'model', model: 'sonnet' });
   assert.deepEqual(parseCommand('!model'), { type: 'model', model: '' });
+});
+
+test('isValidModel: 別名與完整 ID 通過,亂打的不過', () => {
+  assert.ok(isValidModel('sonnet'));
+  assert.ok(isValidModel('FABLE'));
+  assert.ok(isValidModel('default'));
+  assert.ok(isValidModel('claude-sonnet-4-6'));
+  assert.ok(!isValidModel('sonnet4.6'));
+  assert.ok(!isValidModel('gpt-5'));
+  assert.ok(!isValidModel(''));
 });
 
 test('chunkText: 短文字單塊', () => {

@@ -25,13 +25,40 @@ export function parseCommand(text) {
   }
 }
 
+// 允許的模型:別名(永遠指向該系列最新版)+ 已知完整 ID
+export const KNOWN_MODELS = [
+  'fable',
+  'opus',
+  'sonnet',
+  'haiku',
+  'default',
+  'claude-fable-5',
+  'claude-opus-4-8',
+  'claude-sonnet-4-6',
+  'claude-haiku-4-5-20251001',
+];
+
+export function isValidModel(name) {
+  return KNOWN_MODELS.includes((name || '').toLowerCase());
+}
+
+export const MODEL_LIST_TEXT = [
+  '*可用模型*',
+  '`fable` → Fable 5(claude-fable-5)',
+  '`opus` → Opus 4.8(claude-opus-4-8)',
+  '`sonnet` → Sonnet 4.6(claude-sonnet-4-6)',
+  '`haiku` → Haiku 4.5(claude-haiku-4-5-20251001)',
+  '`default` → 還原 Claude Code 預設',
+  '別名會自動指向該系列最新版;也可以直接用上面括號裡的完整 ID。',
+].join('\n');
+
 export const HELP_TEXT = [
   '*bot-remote 指令*',
-  '`!cwd <path>` — 切換工作目錄(專案)',
+  '`!cwd <path>` — 切換工作目錄(專案),不帶參數顯示目前目錄',
   '`!new` — 重開一個全新 Claude session',
-  '`!model <名稱>` — 切換模型(如 `sonnet`、`opus`、`haiku`;不帶參數顯示目前模型,`default` 還原預設)',
-  '`!status` — 目前目錄 / session / 佇列狀態',
+  '`!model <名稱>` — 切換主模型(`fable` / `opus` / `sonnet` / `haiku` / `default`);不帶參數顯示目前模型',
+  '`!status` — 目前目錄 / session / 模型 / 佇列狀態',
   '`!stop` — 中斷目前執行中的任務',
   '`!help` — 顯示這份說明',
-  '其他訊息都會直接送給 Claude Code 執行。',
+  '其他訊息都會直接送給 Claude Code 執行(粗重工作會自動派給 worker agent 平行處理)。',
 ].join('\n');
