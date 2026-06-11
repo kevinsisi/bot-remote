@@ -51,14 +51,24 @@ copy .env.example .env   # 填入上面拿到的 token
 npm start
 ```
 
-開機自動啟動(背景無視窗):
+常駐 + 開機自啟(watchdog,建議做法)——註冊一個工作排程器任務,登入時觸發 + 每 2 分鐘檢查,bot 掛了自動拉起:
 
 ```powershell
-.\start-hidden.ps1   # 手動背景啟動
+$action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument '-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "D:\Projects\_HomeProject\bot-remote\watchdog.ps1"'
+$logon  = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
+$repeat = New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 2)
+$settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Minutes 5)
+Register-ScheduledTask -TaskName 'bot-remote-watchdog' -Action $action -Trigger $logon, $repeat -Settings $settings -Force
+```
+
+手動操作:
+
+```powershell
+.\start-hidden.ps1   # 手動背景啟動(會先停舊的)
 .\stop.ps1           # 停止
 ```
 
-要開機自動跑,把 `start-hidden.ps1` 加進工作排程器(登入時觸發)即可。
+注意:`*.ps1` 腳本必須保持純 ASCII 內容——排程器用 Windows PowerShell 5.1 執行,UTF-8(無 BOM)中文會被 ANSI 誤讀導致腳本壞掉。重啟紀錄在 `watchdog.log`。
 
 ## 三、使用
 
