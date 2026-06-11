@@ -62,6 +62,20 @@ Status: Approved (brainstorm 完成,使用者選方案 A)
 - `node --test`:`slack-format`(切塊邊界、mrkdwn 轉換)、`commands`(指令解析)純函式單元測試。
 - 端對端需真實 Slack token,由使用者建好 App 後實機驗證。
 
+## Agent 派工(2026-06-11 增補)
+
+- 主對話 = orchestrator,預設模型 `claude-fable-5`(`!model` 可改,存 state.json)。
+- spawn 時帶 `--agents` 定義 `worker` subagent(模型 `claude-sonnet-4-6`,可用 `WORKER_MODEL` env 覆寫),
+  並用 `--append-system-prompt` 指示主對話把粗重工作派給 worker、獨立工作平行派多個。
+- 派工走 Claude Code 原生 Task 工具(claudecode-remote 的自架 HTTP task-manager 太重,不採用)。
+- claude 是原生 exe,spawn 不走 cmd shell,JSON 參數才能安全傳遞。
+
+## 常駐機制(2026-06-11 增補)
+
+- 排程工作 `bot-remote-watchdog`:登入觸發 + 每 2 分鐘,跑 `wscript.exe watchdog.vbs` → `watchdog.ps1`(完全無視窗)。
+- bot 必須由排程器啟動:Claude Code 工具沙箱會殺掉所有子孫程序。
+- `.ps1` 必須純 ASCII:排程器用 Windows PowerShell 5.1,UTF-8 無 BOM 中文會被 ANSI 誤讀。
+
 ## 不做(YAGNI)
 
 - 圖片上傳、多 session/thread、task pool、Web UI(claudecode-remote 已有)。

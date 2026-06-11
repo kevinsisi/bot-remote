@@ -1,11 +1,33 @@
 import { spawn } from 'node:child_process';
 
+// 主對話是 orchestrator;粗重工作派給 worker subagent(可平行)。
+const ORCHESTRATOR_PROMPT =
+  '你是透過 Slack 橋接被遠端操控的協調者(orchestrator),跑在使用者的公司電腦上。' +
+  '遇到需要大量讀檔、寫程式、研究、多檔修改的工作,優先用 Task 工具派給 worker agent,' +
+  '彼此獨立的工作就平行派多個 worker;你自己專注於拆解任務、整合結果。' +
+  '你的回覆會貼到 Slack 手機畫面上,保持精簡,沒被要求就不要貼大段程式碼。';
+
+function buildAgentsJson(workerModel) {
+  return JSON.stringify({
+    worker: {
+      description:
+        'General-purpose executor for substantial coding, research, or analysis tasks. ' +
+        'Use proactively for heavy lifting; multiple workers may run in parallel.',
+      prompt:
+        'You are a worker agent on the user\'s office PC. Complete the assigned task fully, ' +
+        'verify your work, and return a concise, factual result.',
+      model: workerModel,
+    },
+  });
+}
+
 // 一次只跑一個 Claude 任務的 FIFO 佇列。
 // 事件透過 callbacks 回報:onProgress(text)、最終 resolve {ok, text, sessionId}。
 export class ClaudeRunner {
-  constructor({ claudeCmd, taskTimeoutMs }) {
+  constructor({ claudeCmd, taskTimeoutMs, workerModel }) {
     this.claudeCmd = claudeCmd;
     this.taskTimeoutMs = taskTimeoutMs;
+    this.workerModel = workerModel;
     this.queue = [];
     this.current = null; // { child, prompt, startedAt }
   }
@@ -51,13 +73,15 @@ export class ClaudeRunner {
         '--output-format', 'stream-json',
         '--verbose',
         '--dangerously-skip-permissions',
+        '--append-system-prompt', ORCHESTRATOR_PROMPT,
       ];
+      if (this.workerModel) args.push('--agents', buildAgentsJson(this.workerModel));
       if (task.sessionId) args.push('--resume', task.sessionId);
       if (task.model) args.push('--model', task.model);
 
+      // claude 是原生 exe,直接 spawn(不走 cmd shell,JSON 參數才不會被引號規則弄壞)
       const child = spawn(this.claudeCmd, args, {
         cwd: task.cwd,
-        shell: process.platform === 'win32', // Windows 上 claude 是 .cmd shim
         windowsHide: true,
       });
       this.current = { child, startedAt: Date.now() };
@@ -151,7 +175,7 @@ function extractAssistantContent(event) {
 function killTree(child) {
   if (!child || child.exitCode !== null) return;
   if (process.platform === 'win32') {
-    // shell:true 時 child 是 cmd 包裝,要殺整棵 process tree
+    // claude 會再 spawn 自己的子程序(含 worker agent),要殺整棵 process tree
     spawn('taskkill', ['/pid', String(child.pid), '/t', '/f'], { windowsHide: true });
   } else {
     child.kill('SIGTERM');

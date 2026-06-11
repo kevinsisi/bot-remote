@@ -22,6 +22,8 @@ export const config = {
   // 留空 = 聽所有 bot 所在的 channel
   channelId: process.env.CHANNEL_ID || null,
   claudeCmd: process.env.CLAUDE_CMD || 'claude',
+  // 派工 agent 用的模型(主對話模型由 state.model / !model 控制)
+  workerModel: process.env.WORKER_MODEL || 'claude-sonnet-4-6',
   defaultCwd: process.env.DEFAULT_CWD || process.cwd(),
   taskTimeoutMs: Number(process.env.TASK_TIMEOUT_MS) || DEFAULT_TASK_TIMEOUT_MS,
   progressIntervalMs:

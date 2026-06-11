@@ -51,10 +51,10 @@ copy .env.example .env   # 填入上面拿到的 token
 npm start
 ```
 
-常駐 + 開機自啟(watchdog,建議做法)——註冊一個工作排程器任務,登入時觸發 + 每 2 分鐘檢查,bot 掛了自動拉起:
+常駐 + 開機自啟(watchdog,建議做法)——註冊一個工作排程器任務,登入時觸發 + 每 2 分鐘檢查,bot 掛了自動拉起。透過 `wscript.exe` + `watchdog.vbs` 執行,完全不會閃出視窗:
 
 ```powershell
-$action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument '-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "D:\Projects\_HomeProject\bot-remote\watchdog.ps1"'
+$action = New-ScheduledTaskAction -Execute 'wscript.exe' -Argument '"D:\Projects\_HomeProject\bot-remote\watchdog.vbs"'
 $logon  = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
 $repeat = New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 2)
 $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Minutes 5)
@@ -81,6 +81,10 @@ Register-ScheduledTask -TaskName 'bot-remote-watchdog' -Action $action -Trigger 
 | `!status` | 顯示目錄 / session / 佇列狀態 |
 | `!stop` | 中斷目前任務 |
 | `!help` | 指令說明 |
+
+## Agent 派工
+
+主對話是 orchestrator(預設 `claude-fable-5`),遇到粗重工作會自動用 Task 工具派給 `worker` agent(預設 `claude-sonnet-4-6`,`.env` 的 `WORKER_MODEL` 可覆寫),獨立工作會平行派多個。直接在 Slack 下指令即可,例如「派 worker 平行分析這三個專案的結構」。
 
 ## 安全注意
 

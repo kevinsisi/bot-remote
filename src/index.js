@@ -16,6 +16,7 @@ const state = loadState({ sessionId: null, cwd: config.defaultCwd, model: null }
 const runner = new ClaudeRunner({
   claudeCmd: config.claudeCmd,
   taskTimeoutMs: config.taskTimeoutMs,
+  workerModel: config.workerModel,
 });
 
 const app = new App({
