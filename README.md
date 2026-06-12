@@ -82,9 +82,9 @@ Register-ScheduledTask -TaskName 'bot-remote-watchdog' -Action $action -Trigger 
 | `!stop` | 中斷目前任務 |
 | `!help` | 指令說明 |
 
-## Agent 派工
+## Agent 派工(背景任務池)
 
-主對話是 orchestrator(預設 `claude-fable-5`),遇到粗重工作會自動用 Task 工具派給 `worker` agent(預設 `claude-sonnet-4-6`,`.env` 的 `WORKER_MODEL` 可覆寫),獨立工作會平行派多個。直接在 Slack 下指令即可,例如「派 worker 平行分析這三個專案的結構」。
+主對話是 orchestrator(預設 `claude-fable-5`),收到粗重工作時會透過本機 HTTP 端點(`127.0.0.1:8765`,僅本機)丟進**背景任務池**後立刻回覆你——不會卡住對話,你可以馬上下下一個指令。worker(預設 `claude-sonnet-4-6`,`WORKER_MODEL` 可覆寫)在背景平行跑(上限 10 個),做完時 bot 自動把結果貼回 channel(超過 60 秒的會 @你 推播)。`!status` 可看背景任務清單;問 master「任務跑得怎樣」它會查進度回報。
 
 ## 安全注意
 

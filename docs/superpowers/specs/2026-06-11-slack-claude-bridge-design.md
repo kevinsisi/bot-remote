@@ -62,13 +62,19 @@ Status: Approved (brainstorm 完成,使用者選方案 A)
 - `node --test`:`slack-format`(切塊邊界、mrkdwn 轉換)、`commands`(指令解析)純函式單元測試。
 - 端對端需真實 Slack token,由使用者建好 App 後實機驗證。
 
-## Agent 派工(2026-06-11 增補)
+## Agent 派工(2026-06-13 改版:背景任務池)
 
 - 主對話 = orchestrator,預設模型 `claude-fable-5`(`!model` 可改,存 state.json)。
-- spawn 時帶 `--agents` 定義 `worker` subagent(模型 `claude-sonnet-4-6`,可用 `WORKER_MODEL` env 覆寫),
-  並用 `--append-system-prompt` 指示主對話把粗重工作派給 worker、獨立工作平行派多個。
-- 派工走 Claude Code 原生 Task 工具(claudecode-remote 的自架 HTTP task-manager 太重,不採用)。
-- claude 是原生 exe,spawn 不走 cmd shell,JSON 參數才能安全傳遞。
+- ~~原生 Task 工具派工~~ 改為**背景任務池**:原生 Task 是同步的,master 會卡整輪等 worker,
+  導致使用者的下一則訊息排隊。改成 claudecode-remote task-manager 的輕量版:
+  - `src/dispatch-server.js`:本機 HTTP 端點(127.0.0.1:`DISPATCH_PORT`,預設 8765),
+    `POST /tasks {prompt, description}` 派工、`GET /tasks` 查狀態。
+  - `src/task-pool.js`:每任務獨立 `claude -p`(模型 `WORKER_MODEL`,預設 claude-sonnet-4-6),
+    平行上限 10,完成 emit done。
+  - master 系統提示:粗重工作用 curl 派背景任務後「立刻回覆、絕不等待」;prompt 必須自包含。
+  - 完成時 bot 自動貼結果到最後互動的 channel(存 state.lastChannel,重啟存活),
+    ≥60s 的任務另發 mention 訊息觸發推播。
+- claude 是原生 exe,spawn 不走 cmd shell。
 
 ## 常駐機制(2026-06-11 增補)
 

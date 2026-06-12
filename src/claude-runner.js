@@ -1,36 +1,33 @@
 import { spawn } from 'node:child_process';
 
-// 主對話是 orchestrator,以最低 token 運行;實作工作全部派給 worker subagent。
-const ORCHESTRATOR_PROMPT =
-  '你是透過 Slack 橋接被遠端操控的協調者(orchestrator),跑在使用者的公司電腦上。' +
-  '最高原則:把你自己的 token 用量降到最低。' +
-  '(1) 凡是需要讀檔案、寫程式、跑指令、搜尋、研究、分析的工作,一律用 Task 工具派給 worker agent,不要自己動手;' +
-  '(2) 彼此獨立的工作平行派多個 worker;' +
-  '(3) 你只做:理解需求、拆解任務、派工、整合 worker 的回報;' +
-  '(4) 只有純對話或一句話能回答的問題才自己直接回;' +
-  '(5) 回覆會顯示在 Slack 手機畫面,保持精簡,不要貼大段程式碼或檔案內容,給結論和重點即可。';
-
-function buildAgentsJson(workerModel) {
-  return JSON.stringify({
-    worker: {
-      description:
-        'General-purpose executor for substantial coding, research, or analysis tasks. ' +
-        'Use proactively for heavy lifting; multiple workers may run in parallel.',
-      prompt:
-        'You are a worker agent on the user\'s office PC. Complete the assigned task fully, ' +
-        'verify your work, and return a concise, factual result.',
-      model: workerModel,
-    },
-  });
+// 主對話是 orchestrator,以最低 token 運行;粗重工作派到背景任務池後「立刻回覆」,
+// 不等結果——結果由 bot 自動回報到 Slack。
+function buildOrchestratorPrompt(dispatchPort) {
+  return (
+    '你是透過 Slack 橋接被遠端操控的協調者(orchestrator),跑在使用者的公司電腦上。' +
+    '最高原則:把你自己的 token 用量降到最低,並且讓每一輪回覆都在幾秒內結束。' +
+    '(1) 凡是需要讀檔案、寫程式、跑指令、搜尋、研究、分析的工作,用 Bash 執行 ' +
+    `curl -s -X POST http://127.0.0.1:${dispatchPort}/tasks -H "Content-Type: application/json" ` +
+    `-d '{"prompt":"<完整且自包含的任務描述>","description":"<10字內摘要>"}' 派成背景任務;` +
+    '派完「立刻」告訴使用者你派了哪些任務(附編號),然後結束這一輪——絕對不要等待任務完成,' +
+    '系統會在任務做完時自動把結果貼回 Slack。' +
+    `(2) 使用者問背景任務進度時,用 curl -s http://127.0.0.1:${dispatchPort}/tasks 查詢後摘要回報。` +
+    '(3) 彼此獨立的工作就拆成多個背景任務一次派出去。' +
+    '(4) prompt 必須自包含(含完整路徑與目標),因為 worker 看不到這段對話。' +
+    '(5) 只有純對話、或 10 秒內能答完的小事才自己直接做。' +
+    '(6) 回覆顯示在 Slack 手機畫面,保持精簡,給結論和重點,不要貼大段程式碼。'
+  );
 }
+
 
 // 一次只跑一個 Claude 任務的 FIFO 佇列。
 // 事件透過 callbacks 回報:onProgress(text)、最終 resolve {ok, text, sessionId}。
 export class ClaudeRunner {
-  constructor({ claudeCmd, taskTimeoutMs, workerModel }) {
+  constructor({ claudeCmd, taskTimeoutMs, workerModel, dispatchPort }) {
     this.claudeCmd = claudeCmd;
     this.taskTimeoutMs = taskTimeoutMs;
     this.workerModel = workerModel;
+    this.dispatchPort = dispatchPort;
     this.queue = [];
     this.current = null; // { child, prompt, startedAt }
   }
@@ -76,9 +73,8 @@ export class ClaudeRunner {
         '--output-format', 'stream-json',
         '--verbose',
         '--dangerously-skip-permissions',
-        '--append-system-prompt', ORCHESTRATOR_PROMPT,
+        '--append-system-prompt', buildOrchestratorPrompt(this.dispatchPort),
       ];
-      if (this.workerModel) args.push('--agents', buildAgentsJson(this.workerModel));
       if (task.sessionId) args.push('--resume', task.sessionId);
       if (task.model) args.push('--model', task.model);
 

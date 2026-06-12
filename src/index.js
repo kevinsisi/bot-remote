@@ -14,6 +14,8 @@ import {
   FILE_UPLOAD_THRESHOLD,
 } from './slack-format.js';
 import { ClaudeRunner } from './claude-runner.js';
+import { TaskPool } from './task-pool.js';
+import { startDispatchServer } from './dispatch-server.js';
 
 const { App } = pkg;
 
@@ -22,7 +24,17 @@ const runner = new ClaudeRunner({
   claudeCmd: config.claudeCmd,
   taskTimeoutMs: config.taskTimeoutMs,
   workerModel: config.workerModel,
+  dispatchPort: config.dispatchPort,
 });
+
+// 背景任務池:master 透過本機 HTTP 派工,完成時自動回報 Slack
+const pool = new TaskPool({
+  claudeCmd: config.claudeCmd,
+  workerModel: config.workerModel,
+});
+// 回報目的地:最後互動的 channel/使用者(存進 state,重啟後仍可回報)
+if (!state.lastChannel) state.lastChannel = config.channelId;
+if (!state.lastUser) state.lastUser = config.allowedUserIds[0];
 
 const app = new App({
   token: config.slackBotToken,
@@ -40,6 +52,11 @@ app.message(async ({ message, client }) => {
   if (!text) return;
 
   const channel = message.channel;
+  if (state.lastChannel !== channel || state.lastUser !== message.user) {
+    state.lastChannel = channel;
+    state.lastUser = message.user;
+    saveState(state);
+  }
   const command = parseCommand(text);
   if (command) {
     await handleCommand(command, channel, client);
@@ -170,6 +187,15 @@ async function handleCommand(command, channel, client) {
           `🧵 session:\`${state.sessionId || '(新)'}\``,
           `🤖 模型:\`${state.model || '(預設)'}\``,
           `⚙️ 執行中:${runner.isRunning ? '是' : '否'},佇列:${runner.queueLength}`,
+          `🛠️ 背景任務:${pool.running.length} 個執行中` +
+            (pool.list().length
+              ? '\n' +
+                pool
+                  .list()
+                  .slice(-10)
+                  .map((t) => `  #${t.id} [${t.status}] ${t.description}(${t.elapsedSec}s)`)
+                  .join('\n')
+              : ''),
         ].join('\n')
       );
       break;
@@ -194,6 +220,32 @@ async function handleCommand(command, channel, client) {
       await say(`不認識的指令 \`${command.name}\`,輸入 \`!help\` 看用法`);
   }
 }
+
+pool.on('done', async (task) => {
+  const channel = state.lastChannel;
+  if (!channel) {
+    console.error(`task #${task.id} 完成但沒有可回報的 channel`);
+    return;
+  }
+  const elapsed = Math.round((task.finishedAt - task.startedAt) / 1000);
+  const icon = task.ok ? '✅' : '❌';
+  try {
+    const mention = elapsed >= config.mentionMinSeconds ? `<@${state.lastUser}> ` : '';
+    await app.client.chat.postMessage({
+      channel,
+      text: `${mention}${icon} 背景任務 #${task.id}「${task.description}」${task.ok ? '完成' : '失敗'}(${elapsed}s)`,
+    });
+    await postLongText(app.client, channel, task.result || '(沒有輸出)');
+  } catch (err) {
+    console.error(`回報 task #${task.id} 失敗:`, err);
+  }
+});
+
+startDispatchServer({
+  port: config.dispatchPort,
+  pool,
+  getCwd: () => state.cwd,
+});
 
 await app.start();
 console.log(

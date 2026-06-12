@@ -32,4 +32,6 @@ export const config = {
     Number(process.env.PROGRESS_INTERVAL_MS) || DEFAULT_PROGRESS_INTERVAL_MS,
   mentionMinSeconds:
     Number(process.env.MENTION_MIN_SECONDS) || DEFAULT_MENTION_MIN_SECONDS,
+  // 本機派工端點(只綁 127.0.0.1),master 用 curl 丟背景任務
+  dispatchPort: Number(process.env.DISPATCH_PORT) || 8765,
 };
