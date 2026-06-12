@@ -50,7 +50,7 @@ app.message(async ({ message, client }) => {
     channel,
     text: runner.isRunning ? '🕐 已排隊…' : '⏳ 執行中…',
   });
-  runner.enqueue(buildTask(text, channel, client, placeholder.ts));
+  runner.enqueue(buildTask(text, channel, client, placeholder.ts, message.user));
 });
 
 const PROGRESS_SNIPPET_LIMIT = 500;
@@ -62,7 +62,7 @@ function truncateForProgress(text) {
     : flat;
 }
 
-function buildTask(prompt, channel, client, placeholderTs) {
+function buildTask(prompt, channel, client, placeholderTs, userId) {
   let lastUpdate = 0;
   let lastThinking = '';
   let lastText = '';
@@ -106,6 +106,14 @@ function buildTask(prompt, channel, client, placeholderTs) {
       try {
         await client.chat.update({ channel, ts: placeholderTs, text: header });
         await postLongText(client, channel, result.text || '(沒有輸出)');
+        // 長任務結束時另發一則帶 mention 的新訊息觸發手機推播
+        //(編輯舊訊息加 mention 不會推播);秒回的任務不吵
+        if (elapsed >= config.mentionMinSeconds) {
+          await client.chat.postMessage({
+            channel,
+            text: `<@${userId}> 🔔 任務${result.ok ? '完成' : '失敗'}(${elapsed}s),結果在上方`,
+          });
+        }
       } catch (err) {
         console.error('回貼 Slack 失敗:', err);
       }

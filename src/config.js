@@ -2,6 +2,8 @@ import 'dotenv/config';
 
 const DEFAULT_TASK_TIMEOUT_MS = 30 * 60 * 1000;
 const DEFAULT_PROGRESS_INTERVAL_MS = 3000;
+// 任務跑超過這個秒數,完成時 @使用者 觸發手機推播;太快完成的不吵
+const DEFAULT_MENTION_MIN_SECONDS = 60;
 
 function required(name) {
   const value = process.env[name];
@@ -28,4 +30,6 @@ export const config = {
   taskTimeoutMs: Number(process.env.TASK_TIMEOUT_MS) || DEFAULT_TASK_TIMEOUT_MS,
   progressIntervalMs:
     Number(process.env.PROGRESS_INTERVAL_MS) || DEFAULT_PROGRESS_INTERVAL_MS,
+  mentionMinSeconds:
+    Number(process.env.MENTION_MIN_SECONDS) || DEFAULT_MENTION_MIN_SECONDS,
 };
