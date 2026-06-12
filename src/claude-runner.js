@@ -1,11 +1,14 @@
 import { spawn } from 'node:child_process';
 
-// 主對話是 orchestrator;粗重工作派給 worker subagent(可平行)。
+// 主對話是 orchestrator,以最低 token 運行;實作工作全部派給 worker subagent。
 const ORCHESTRATOR_PROMPT =
   '你是透過 Slack 橋接被遠端操控的協調者(orchestrator),跑在使用者的公司電腦上。' +
-  '遇到需要大量讀檔、寫程式、研究、多檔修改的工作,優先用 Task 工具派給 worker agent,' +
-  '彼此獨立的工作就平行派多個 worker;你自己專注於拆解任務、整合結果。' +
-  '你的回覆會貼到 Slack 手機畫面上,保持精簡,沒被要求就不要貼大段程式碼。';
+  '最高原則:把你自己的 token 用量降到最低。' +
+  '(1) 凡是需要讀檔案、寫程式、跑指令、搜尋、研究、分析的工作,一律用 Task 工具派給 worker agent,不要自己動手;' +
+  '(2) 彼此獨立的工作平行派多個 worker;' +
+  '(3) 你只做:理解需求、拆解任務、派工、整合 worker 的回報;' +
+  '(4) 只有純對話或一句話能回答的問題才自己直接回;' +
+  '(5) 回覆會顯示在 Slack 手機畫面,保持精簡,不要貼大段程式碼或檔案內容,給結論和重點即可。';
 
 function buildAgentsJson(workerModel) {
   return JSON.stringify({
@@ -93,15 +96,18 @@ export class ClaudeRunner {
       let lineBuf = '';
       let settled = false;
 
-      const timeout = setTimeout(() => {
-        stderrBuf += `\n[bot-remote] 任務超過 ${Math.round(this.taskTimeoutMs / 60000)} 分鐘,已強制終止`;
-        killTree(child);
-      }, this.taskTimeoutMs);
+      // taskTimeoutMs = 0 表示不限時,長任務交給使用者用 !stop 控制
+      const timeout = this.taskTimeoutMs
+        ? setTimeout(() => {
+            stderrBuf += `\n[bot-remote] 任務超過 ${Math.round(this.taskTimeoutMs / 60000)} 分鐘,已強制終止`;
+            killTree(child);
+          }, this.taskTimeoutMs)
+        : null;
 
       const finish = (result) => {
         if (settled) return;
         settled = true;
-        clearTimeout(timeout);
+        if (timeout) clearTimeout(timeout);
         this.current = null;
         resolve(result);
       };

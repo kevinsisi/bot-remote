@@ -1,6 +1,5 @@
 import 'dotenv/config';
 
-const DEFAULT_TASK_TIMEOUT_MS = 30 * 60 * 1000;
 const DEFAULT_PROGRESS_INTERVAL_MS = 3000;
 // 任務跑超過這個秒數,完成時 @使用者 觸發手機推播;太快完成的不吵
 const DEFAULT_MENTION_MIN_SECONDS = 60;
@@ -27,7 +26,8 @@ export const config = {
   // 派工 agent 用的模型(主對話模型由 state.model / !model 控制)
   workerModel: process.env.WORKER_MODEL || 'claude-sonnet-4-6',
   defaultCwd: process.env.DEFAULT_CWD || process.cwd(),
-  taskTimeoutMs: Number(process.env.TASK_TIMEOUT_MS) || DEFAULT_TASK_TIMEOUT_MS,
+  // 0 = 不限時(預設);要設上限才填 TASK_TIMEOUT_MS,手動中斷用 !stop
+  taskTimeoutMs: Number(process.env.TASK_TIMEOUT_MS) || 0,
   progressIntervalMs:
     Number(process.env.PROGRESS_INTERVAL_MS) || DEFAULT_PROGRESS_INTERVAL_MS,
   mentionMinSeconds:
