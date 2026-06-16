@@ -2,6 +2,13 @@ import { spawn } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 
 const MAX_BACKGROUND_TASKS = 10;
+const MAX_RETRIES = 3;
+const RETRY_DELAYS_MS = [5_000, 15_000, 30_000]; // backoff per attempt
+
+// Claude API transient errors worth retrying (5xx, overloaded, timeout)
+function isTransient(text) {
+  return /API Error: 5\d\d|overloaded|529|503|502|timed? ?out/i.test(text || '');
+}
 
 const WORKER_PROMPT =
   '你是被 orchestrator 派遣的背景 worker,跑在使用者的公司電腦上。' +
@@ -47,6 +54,7 @@ export class TaskPool extends EventEmitter {
       finishedAt: null,
       result: null,
       ok: null,
+      attempt: 0,
     };
     this.tasks.set(id, task);
     this.#run(task);
@@ -104,12 +112,20 @@ export class TaskPool extends EventEmitter {
 
     child.on('error', (err) => finish(false, `無法啟動 worker:${err.message}`));
     child.on('close', (code) => {
-      if (resultText !== null && !isError) finish(true, resultText);
-      else
-        finish(
-          false,
-          [resultText, stderrBuf.trim(), `exit code: ${code}`].filter(Boolean).join('\n')
-        );
+      if (resultText !== null && !isError) {
+        finish(true, resultText);
+        return;
+      }
+      const errText = [resultText, stderrBuf.trim(), `exit code: ${code}`].filter(Boolean).join('\n');
+      // Retry on transient Claude API errors (5xx / overloaded)
+      if (isTransient(errText) && task.attempt < MAX_RETRIES) {
+        const delay = RETRY_DELAYS_MS[task.attempt] ?? 30_000;
+        task.attempt += 1;
+        console.warn(`[task #${task.id}] transient error, retry ${task.attempt}/${MAX_RETRIES} in ${delay / 1000}s`);
+        setTimeout(() => this.#run(task), delay);
+      } else {
+        finish(false, errText);
+      }
     });
 
     child.stdin.write(task.prompt, 'utf8');
