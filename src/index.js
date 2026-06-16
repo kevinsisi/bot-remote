@@ -251,3 +251,58 @@ await app.start();
 console.log(
   `⚡ bot-remote 已啟動(Socket Mode)\n   工作目錄:${state.cwd}\n   白名單:${config.allowedUserIds.join(', ')}`
 );
+
+// Self-heal: detect zombie WebSocket connections (corporate NAT silently kills idle connections;
+// OS still shows ESTABLISHED but no data flows and no disconnect event fires).
+// Strategy 1: event-based — exit if SDK emits disconnected and can't reconnect in 5 min.
+// Strategy 2: active heartbeat — HTTP auth.test() every 3 min; consecutive failures → exit.
+const smClient = app.receiver?.client;
+if (smClient) {
+  let disconnectedAt = null;
+  smClient.on('connected', () => {
+    if (disconnectedAt) {
+      console.log(`[health] Socket Mode reconnected after ${Math.round((Date.now() - disconnectedAt) / 1000)}s`);
+    }
+    disconnectedAt = null;
+  });
+  smClient.on('disconnected', () => {
+    if (!disconnectedAt) {
+      disconnectedAt = Date.now();
+      console.warn('[health] Socket Mode disconnected, watching for reconnect...');
+    }
+  });
+  setInterval(() => {
+    if (disconnectedAt) {
+      const downMs = Date.now() - disconnectedAt;
+      if (downMs > 5 * 60_000) {
+        console.error(`[health] Socket Mode down ${Math.round(downMs / 60000)}min, exiting for watchdog restart`);
+        process.exit(1);
+      }
+      console.warn(`[health] Socket Mode still down (${Math.round(downMs / 1000)}s)...`);
+    }
+  }, 60_000);
+} else {
+  console.warn('[health] Could not attach Socket Mode health watchdog');
+}
+
+// Active heartbeat: ping Slack HTTP API every 3 minutes.
+// Catches zombie TCP connections that SDK never detects via events.
+let heartbeatFailures = 0;
+const HEARTBEAT_INTERVAL_MS = 3 * 60_000;
+const HEARTBEAT_MAX_FAILURES = 2; // 2 consecutive failures = 6 min dead → exit
+setInterval(async () => {
+  try {
+    await app.client.auth.test();
+    if (heartbeatFailures > 0) {
+      console.log(`[health] Heartbeat recovered after ${heartbeatFailures} failure(s)`);
+    }
+    heartbeatFailures = 0;
+  } catch (err) {
+    heartbeatFailures += 1;
+    console.error(`[health] Heartbeat failed (${heartbeatFailures}/${HEARTBEAT_MAX_FAILURES}): ${err.message}`);
+    if (heartbeatFailures >= HEARTBEAT_MAX_FAILURES) {
+      console.error('[health] Too many heartbeat failures, exiting for watchdog restart');
+      process.exit(1);
+    }
+  }
+}, HEARTBEAT_INTERVAL_MS);
