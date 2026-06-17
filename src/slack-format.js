@@ -3,12 +3,77 @@ export const SLACK_CHUNK_LIMIT = 3900;
 // 超過這個長度改用檔案上傳,避免洗版。
 export const FILE_UPLOAD_THRESHOLD = 12000;
 
-// 最小化 Markdown → Slack mrkdwn 轉換:粗體與標題。
-// 不處理巢狀/邊角語法 — 顯示稍醜可接受,內容正確優先。
+// Markdown → Slack mrkdwn 轉換。
+// Slack 不支援表格、水平線、code fence 語言標籤 — 處理這些以減少雜訊。
 export function toMrkdwn(text) {
-  return (text || '')
-    .replace(/^#{1,6}\s+(.+)$/gm, '*$1*')
-    .replace(/\*\*([^*\n]+)\*\*/g, '*$1*');
+  if (!text) return '';
+
+  const lines = text.split('\n');
+  const out = [];
+  let inTable = false;
+  let inCodeFence = false;
+
+  for (const line of lines) {
+    // Track code fences so we don't transform content inside them
+    if (/^```/.test(line)) {
+      if (!inCodeFence) {
+        inCodeFence = true;
+        // Strip language specifier (```python → ```) — Slack ignores it anyway
+        out.push('```');
+        continue;
+      } else {
+        inCodeFence = false;
+        out.push('```');
+        continue;
+      }
+    }
+
+    if (inCodeFence) {
+      out.push(line);
+      continue;
+    }
+
+    const trimmed = line.trim();
+
+    // Table rows start with |
+    const isTableRow = trimmed.startsWith('|');
+    // Separator rows like |---|:---:|--- contain only |, -, :, space
+    const isSeparatorRow = isTableRow && /^\|[\s\-|:]+\|?$/.test(trimmed);
+
+    if (isTableRow) {
+      if (!inTable) {
+        out.push('```');
+        inTable = true;
+      }
+      if (!isSeparatorRow) out.push(line); // skip |---|---| rows
+      continue;
+    }
+
+    if (inTable) {
+      out.push('```');
+      inTable = false;
+    }
+
+    // Horizontal rules → blank line
+    if (/^[-*_]{3,}$/.test(trimmed)) {
+      out.push('');
+      continue;
+    }
+
+    // Headings → bold
+    const headingMatch = line.match(/^#{1,6}\s+(.+)$/);
+    if (headingMatch) {
+      out.push(`*${headingMatch[1]}*`);
+      continue;
+    }
+
+    // **bold** → *bold*
+    out.push(line.replace(/\*\*([^*\n]+)\*\*/g, '*$1*'));
+  }
+
+  if (inTable) out.push('```');
+
+  return out.join('\n');
 }
 
 // 依行切塊,單行超長再硬切,確保每塊 <= limit。
