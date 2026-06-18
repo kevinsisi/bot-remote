@@ -19,7 +19,7 @@ import { startDispatchServer } from './dispatch-server.js';
 
 const { App } = pkg;
 
-const state = loadState({ sessionId: null, cwd: config.defaultCwd, model: null });
+const state = loadState({ sessionId: null, cwd: config.defaultCwd, model: config.masterModel });
 const runner = new ClaudeRunner({
   claudeCmd: config.claudeCmd,
   taskTimeoutMs: config.taskTimeoutMs,

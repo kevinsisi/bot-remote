@@ -27,9 +27,10 @@ test('parseCommand: 各指令', () => {
 
 test('isValidModel: 別名與完整 ID 通過,亂打的不過', () => {
   assert.ok(isValidModel('sonnet'));
-  assert.ok(isValidModel('FABLE'));
+  assert.ok(isValidModel('OPUS'));
   assert.ok(isValidModel('default'));
   assert.ok(isValidModel('claude-sonnet-4-6'));
+  assert.ok(!isValidModel('fable'));
   assert.ok(!isValidModel('sonnet4.6'));
   assert.ok(!isValidModel('gpt-5'));
   assert.ok(!isValidModel(''));

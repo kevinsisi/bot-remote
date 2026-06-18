@@ -64,7 +64,7 @@ Status: Approved (brainstorm 完成,使用者選方案 A)
 
 ## Agent 派工(2026-06-13 改版:背景任務池)
 
-- 主對話 = orchestrator,預設模型 `claude-fable-5`(`!model` 可改,存 state.json)。
+- 主對話 = orchestrator,預設模型 `claude-opus-4-8`(`MASTER_MODEL` 可覆寫,`!model` 可改,存 state.json)。
 - ~~原生 Task 工具派工~~ 改為**背景任務池**:原生 Task 是同步的,master 會卡整輪等 worker,
   導致使用者的下一則訊息排隊。改成 claudecode-remote task-manager 的輕量版:
   - `src/dispatch-server.js`:本機 HTTP 端點(127.0.0.1:`DISPATCH_PORT`,預設 8765),

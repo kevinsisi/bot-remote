@@ -23,6 +23,8 @@ export const config = {
   // 留空 = 聽所有 bot 所在的 channel
   channelId: process.env.CHANNEL_ID || null,
   claudeCmd: process.env.CLAUDE_CMD || 'claude',
+  // 主對話(orchestrator)預設模型;可由 state.model / !model 覆寫
+  masterModel: process.env.MASTER_MODEL || 'claude-opus-4-8',
   // 派工 agent 用的模型(主對話模型由 state.model / !model 控制)
   workerModel: process.env.WORKER_MODEL || 'claude-sonnet-4-6',
   defaultCwd: process.env.DEFAULT_CWD || process.cwd(),
