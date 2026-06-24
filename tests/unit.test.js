@@ -13,7 +13,8 @@ test('parseCommand: 各指令', () => {
   assert.deepEqual(parseCommand('!help'), { type: 'help' });
   assert.deepEqual(parseCommand('!new'), { type: 'new' });
   assert.deepEqual(parseCommand('!status'), { type: 'status' });
-  assert.deepEqual(parseCommand('!stop'), { type: 'stop' });
+  assert.deepEqual(parseCommand('!stop'), { type: 'stop', target: '' });
+  assert.deepEqual(parseCommand('!stop 3'), { type: 'stop', target: '3' });
   assert.deepEqual(parseCommand('!cwd D:\\Projects\\foo'), {
     type: 'cwd',
     path: 'D:\\Projects\\foo',

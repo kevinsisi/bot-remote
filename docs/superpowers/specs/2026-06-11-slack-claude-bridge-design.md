@@ -76,6 +76,17 @@ Status: Approved (brainstorm 完成,使用者選方案 A)
     ≥60s 的任務另發 mention 訊息觸發推播。
 - claude 是原生 exe,spawn 不走 cmd shell。
 
+## 穩定性強化(2026-06-24)
+
+根因事件:多個平行 `claude -p` 共用 `~/.claude/.credentials.json`,access token 過期時搶著刷新 → race → refresh token 被寫成空字串 → 全部 401。互動式 Claude Code 不受影響(token 握記憶體),但 headless 每次新程序重讀壞檔。
+
+- **認證預檢** `src/auth-check.js`:`runAuthPreflight()` 跑極小 `claude -p`,`isAuthError()` 判斷是否認證類錯誤(401/oauth/not logged in)。開機 5s 後 + 每 6h 一次;失敗且為認證問題時主動 Slack 通知一次(狀態轉換才發,不洗版),恢復時通知。
+- **失敗分類**:master(claude-runner onDone)與背景任務(pool done)都用 `isAuthError` 區分 🔑 認證失效 vs ❌ 一般失敗,認證失效附 `setup-token` 修復指引。
+- **每日心跳**:`HEARTBEAT_ENABLED`(預設 true)每 24h 報活著 + 認證狀態 + 背景任務數。
+- **背景任務 thread + 即時進度**:pool 新增 `start`/`progress` 事件;index 在開跑時貼 placeholder,過程就地更新(thinking+片段),done 時把 placeholder 改成完成標頭、結果回 thread(`postLongText` 支援 `thread_ts`)。
+- **`!stop <id>`**:`pool.stop(id)` killTree 指定任務,close handler 認 `task.stopped` 回「已手動停止」不重試。
+- **根治認證 race 的正解**:`CLAUDE_CODE_OAUTH_TOKEN`(由 `claude setup-token` 取得)放 `.env`,dotenv 注入 → spawn 子程序繼承 → headless 不再刷新寫檔。程式無需改(spawn 未覆寫 env)。
+
 ## 常駐機制(2026-06-11 增補)
 
 - 排程工作 `bot-remote-watchdog`:登入觸發 + 每 2 分鐘,跑 `wscript.exe watchdog.vbs` → `watchdog.ps1`(完全無視窗)。

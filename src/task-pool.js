@@ -10,6 +10,29 @@ function isTransient(text) {
   return /API Error: 5\d\d|overloaded|529|503|502|timed? ?out/i.test(text || '');
 }
 
+// 殺掉整棵 process tree(claude 會再 spawn 子程序)
+function killTree(child) {
+  if (!child || child.exitCode !== null) return;
+  if (process.platform === 'win32') {
+    spawn('taskkill', ['/pid', String(child.pid), '/t', '/f'], { windowsHide: true });
+  } else {
+    child.kill('SIGTERM');
+  }
+}
+
+// 從 assistant 事件抽出文字 / thinking(給即時進度用)
+function extractAssistantContent(event) {
+  const content = event.message?.content;
+  if (!Array.isArray(content)) return { text: '', thinking: '' };
+  const pick = (type, field) =>
+    content
+      .filter((b) => b.type === type)
+      .map((b) => b[field])
+      .filter(Boolean)
+      .join('');
+  return { text: pick('text', 'text'), thinking: pick('thinking', 'thinking') };
+}
+
 const WORKER_PROMPT =
   '你是被 orchestrator 派遣的背景 worker,跑在使用者的公司電腦上。' +
   '獨立完成指派的任務、驗證你的成果,然後精簡回報結論與重點。';
@@ -26,6 +49,15 @@ export class TaskPool extends EventEmitter {
 
   get running() {
     return [...this.tasks.values()].filter((t) => t.status === 'running');
+  }
+
+  // 手動停止指定背景任務;回傳 true 表示有停到正在跑的任務
+  stop(id) {
+    const task = this.tasks.get(Number(id));
+    if (!task || task.status !== 'running') return false;
+    task.stopped = true;
+    killTree(task.child);
+    return true;
   }
 
   list() {
@@ -72,6 +104,8 @@ export class TaskPool extends EventEmitter {
     ];
     const child = spawn(this.claudeCmd, args, { cwd: task.cwd, windowsHide: true });
     task.child = child;
+    // 首次啟動時通知(重試時不重發)
+    if (task.attempt === 0) this.emit('start', task);
 
     let lineBuf = '';
     let resultText = null;
@@ -87,7 +121,10 @@ export class TaskPool extends EventEmitter {
         if (!line) continue;
         try {
           const event = JSON.parse(line);
-          if (event.type === 'result') {
+          if (event.type === 'assistant') {
+            const { text, thinking } = extractAssistantContent(event);
+            if (text || thinking) this.emit('progress', { task, text, thinking });
+          } else if (event.type === 'result') {
             resultText = event.result ?? '';
             isError = Boolean(event.is_error);
           }
@@ -112,6 +149,10 @@ export class TaskPool extends EventEmitter {
 
     child.on('error', (err) => finish(false, `無法啟動 worker:${err.message}`));
     child.on('close', (code) => {
+      if (task.stopped) {
+        finish(false, '已手動停止');
+        return;
+      }
       if (resultText !== null && !isError) {
         finish(true, resultText);
         return;

@@ -36,4 +36,6 @@ export const config = {
     Number(process.env.MENTION_MIN_SECONDS) || DEFAULT_MENTION_MIN_SECONDS,
   // 本機派工端點(只綁 127.0.0.1),master 用 curl 丟背景任務
   dispatchPort: Number(process.env.DISPATCH_PORT) || 8765,
+  // 每日心跳通知(預設開);設 HEARTBEAT_ENABLED=false 關閉
+  heartbeatEnabled: (process.env.HEARTBEAT_ENABLED || 'true').toLowerCase() !== 'false',
 };

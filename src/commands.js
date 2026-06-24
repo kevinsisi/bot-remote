@@ -17,7 +17,7 @@ export function parseCommand(text) {
     case '!status':
       return { type: 'status' };
     case '!stop':
-      return { type: 'stop' };
+      return { type: 'stop', target: arg };
     case '!model':
       return { type: 'model', model: arg };
     default:
@@ -54,8 +54,8 @@ export const HELP_TEXT = [
   '`!cwd <path>` — 切換工作目錄(專案),不帶參數顯示目前目錄',
   '`!new` — 重開一個全新 Claude session',
   '`!model <名稱>` — 切換主模型(`opus` / `sonnet` / `haiku` / `default`);不帶參數顯示目前模型',
-  '`!status` — 目前目錄 / session / 模型 / 佇列狀態',
-  '`!stop` — 中斷目前執行中的任務',
+  '`!status` — 目前目錄 / session / 模型 / 佇列 / 背景任務狀態',
+  '`!stop` — 中斷主任務;`!stop <編號>` — 停掉指定的背景任務',
   '`!help` — 顯示這份說明',
   '其他訊息都會直接送給 Claude Code 執行(粗重工作會自動派給 worker agent 平行處理)。',
 ].join('\n');
